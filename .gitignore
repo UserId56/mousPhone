@@ -1,0 +1,5 @@
+﻿node_modules
+package-lock.json
+private-key.pem
+csr.pem
+cert.pem

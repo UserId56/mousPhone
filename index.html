@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mous Phone</title>
+    <style>
+        .wrapper {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        .wrapper * {
+            margin-top: 20px;
+        }
+
+        .styled-btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .styled-btn:hover {
+            background-color: #45a049;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            appearance: none;
+            height: 8px;
+            background: #ddd;
+            border-radius: 5px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4CAF50;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .mous-button {
+            display: flex;
+            display: flex;
+            width: 100%;
+            align-items: center;
+            justify-content: space-around;
+        }
+
+        .mous-button>.styled-btn {
+            width: 100%;
+            height: 50vh;
+            margin: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrapper">
+        <div class="sync-btn">
+            <button class="styled-btn" id="sync">Синхронизация</button>
+            <button class="styled-btn" id="syncOff">Отключить</button>
+        </div>
+        <label for="rangeInput">Выберите значение:</label>
+        <input type="range" id="rangeInput" min="0" max="1.5" value="1" step="0.05">
+        <p>Текущее значение: <span id="rangeValue">1</span></p>
+
+        <div class="mous-button">
+            <button class="styled-btn" id="left">Левая</button>
+            <button class="styled-btn" id="right">Правая</button>
+        </div>
+
+    </div>
+
+    <script>
+        let EventSocket = {
+            socket: null,
+            start: () => {
+                this.socket = new WebSocket(`wss://${window.location.hostname}:3000`);
+                this.socket.onopen = (event) => {
+                    console.log('Connected to the server');
+                };
+                this.socket.onmessage = (event) => {
+                    console.log(`Message from the server: ${event.data}`);
+                };
+                this.socket.onclose = (event) => {
+                    console.log('Disconnected from the server');
+                    console.log("Reconnecting")
+                    this.start();
+                };
+                document.getElementById('sync').addEventListener('click', function () {
+                    console.log('sync');
+                    EventSocket.sendMessage(JSON.stringify({
+                        type: 'sync',
+                        x: EventSocket.gamma,
+                        z: EventSocket.alpha,
+                        y: EventSocket.beta
+                    }));
+                })
+
+                document.getElementById('left').addEventListener('touchstart', () => {
+                    EventSocket.sendMessage(JSON.stringify({
+                        type: 'click',
+                        event: 'down',
+                        button: 'left',
+                    }));
+                })
+
+                document.getElementById('left').addEventListener('touchend', () => {
+                    EventSocket.sendMessage(JSON.stringify({
+                        type: 'click',
+                        event: 'up',
+                        button: 'left',
+                    }));
+                })
+
+                document.getElementById('right').addEventListener('touchstart', () => {
+                    EventSocket.sendMessage(JSON.stringify({
+                        type: 'click',
+                        event: 'down',
+                        button: 'right',
+                    }));
+                })
+
+                document.getElementById('right').addEventListener('touchend', () => {
+                    EventSocket.sendMessage(JSON.stringify({
+                        type: 'click',
+                        event: 'up',
+                        button: 'right',
+                    }));
+                })
+
+                document.getElementById('syncOff').addEventListener('click', () => {
+                    EventSocket.sendMessage(JSON.stringify({
+                        type: 'disconnect'
+                    }));
+                })
+
+                document.getElementById('rangeInput').addEventListener('input', (event) => {
+                    document.getElementById('rangeValue').innerText = event.target.value;
+                    EventSocket.sendMessage(JSON.stringify({
+                        type: 'speed',
+                        value: event.target.value
+                    }));
+                })
+            },
+            sendMessage: function (messageVariable) {
+                socket.send(messageVariable);
+            },
+            // sync: function () {
+            //     console.log('sync');
+            //     EventSocket.sendMessage(JSON.stringify({
+            //         type: 'sync',
+            //         z: this.alpha,
+            //         y: this.betall,
+            //         x: this.gamma
+            //     }));
+            // },
+            alpha: null,
+            beta: null,
+            gamma: null
+        }
+        EventSocket.start();
+        if (window.DeviceMotionEvent) {
+            window.addEventListener("devicemotion", (event) => {
+                const acc = event.acceleration; // Ускорение без учета гравитации
+                // const accG = event.accelerationIncludingGravity; // Ускорение с учетом гравитации
+                EventSocket.sendMessage(JSON.stringify({
+                    type: 'test',
+                    accX: acc.x.toFixed(2),
+                    accY: acc.y.toFixed(2),
+                    accZ: acc.z.toFixed(2)
+                }));
+                // EventSocket.sendMessage(`Ускорение ${accG.x.toFixed(2)} ${accG.y.toFixed(2)} ${accG.z.toFixed(2)});`);
+            });
+        } else {
+            alert("Ваше устройство не поддерживает DeviceMotionEvent");
+        }
+
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', (event) => {
+                EventSocket.alpha = event.alpha.toFixed(2); // Вращение вокруг оси Z
+                EventSocket.beta = event.beta.toFixed(2);   // Наклон вперёд/назад
+                EventSocket.gamma = event.gamma.toFixed(2); // Наклон влево/вправо
+
+                EventSocket.sendMessage(
+                    // {
+                    //     accX: gamma.toFixed(2),
+                    //     accY: beta.toFixed(2),
+                    //     accZ: alpha.toFixed(2)
+                    // }
+                    JSON.stringify({
+                        type: 'move',
+                        x: EventSocket.gamma,
+                        z: EventSocket.alpha,
+                        y: EventSocket.beta
+                    })
+                    // `${gamma.toFixed(2)}, ${beta.toFixed(2)}, ${alpha.toFixed(2)}`
+                );
+            });
+        } else {
+            alert('DeviceOrientation API не поддерживается на этом устройстве.');
+        }
+
+        // setTimeout(EventSocket.sendMessage, 5000);
+    </script>
+</body>
+
+</html>
